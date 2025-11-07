@@ -1,0 +1,120 @@
+{
+  "resnet18": {
+    "clean": 0.998,
+    "noise_0.05": {
+      "accuracy": 1.0,
+      "uncertainty_delta": -0.00035514100454747677
+    },
+    "noise_0.1": {
+      "accuracy": 0.9993333333333333,
+      "uncertainty_delta": 0.06918907165527344
+    },
+    "noise_0.15": {
+      "accuracy": 0.9973333333333333,
+      "uncertainty_delta": 0.07122451812028885
+    },
+    "noise_0.2": {
+      "accuracy": 0.9946666666666667,
+      "uncertainty_delta": 0.06460344046354294
+    },
+    "contrast_0.7": {
+      "accuracy": 0.9333333333333333,
+      "uncertainty_delta": 3.3350115558050675e-08
+    },
+    "contrast_0.8": {
+      "accuracy": 0.978,
+      "uncertainty_delta": 3.8570284743855154e-08
+    },
+    "contrast_0.9": {
+      "accuracy": 0.9986666666666667,
+      "uncertainty_delta": 6.004718500207673e-08
+    },
+    "contrast_1.1": {
+      "accuracy": 0.9966666666666667,
+      "uncertainty_delta": -2.455879588580956e-08
+    },
+    "contrast_1.2": {
+      "accuracy": 0.994,
+      "uncertainty_delta": 6.707477240297521e-09
+    },
+    "blur_0.5": {
+      "accuracy": 0.998,
+      "accuracy_drop": 0.0,
+      "uncertainty_delta": -1.0741890932308706e-08
+    },
+    "blur_1.0": {
+      "accuracy": 0.99,
+      "accuracy_drop": 0.008000000000000007,
+      "uncertainty_delta": -1.204665345255762e-08
+    },
+    "blur_1.5": {
+      "accuracy": 0.9126666666666666,
+      "accuracy_drop": 0.08533333333333337,
+      "uncertainty_delta": 1.1251703568859739e-08
+    },
+    "blur_2.0": {
+      "accuracy": 0.666,
+      "accuracy_drop": 0.33199999999999996,
+      "uncertainty_delta": 2.769252560597124e-08
+    }
+  },
+  "efficientnet_b3": {
+    "clean": 1.0,
+    "noise_0.05": {
+      "accuracy": 1.0,
+      "uncertainty_delta": -6.849640340078622e-05
+    },
+    "noise_0.1": {
+      "accuracy": 0.99,
+      "uncertainty_delta": 0.1409521847963333
+    },
+    "noise_0.15": {
+      "accuracy": 0.9233333333333333,
+      "uncertainty_delta": 0.03338630869984627
+    },
+    "noise_0.2": {
+      "accuracy": 0.818,
+      "uncertainty_delta": -0.012332495301961899
+    },
+    "contrast_0.7": {
+      "accuracy": 0.9993333333333333,
+      "uncertainty_delta": 0.040304992347955704
+    },
+    "contrast_0.8": {
+      "accuracy": 0.9993333333333333,
+      "uncertainty_delta": 0.0402502678334713
+    },
+    "contrast_0.9": {
+      "accuracy": 1.0,
+      "uncertainty_delta": -8.675619028508663e-05
+    },
+    "contrast_1.1": {
+      "accuracy": 0.994,
+      "uncertainty_delta": 0.019177531823515892
+    },
+    "contrast_1.2": {
+      "accuracy": 0.988,
+      "uncertainty_delta": 0.026762070134282112
+    },
+    "blur_0.5": {
+      "accuracy": 1.0,
+      "accuracy_drop": 0.0,
+      "uncertainty_delta": -7.322332385228947e-05
+    },
+    "blur_1.0": {
+      "accuracy": 1.0,
+      "accuracy_drop": 0.0,
+      "uncertainty_delta": -0.0001250735658686608
+    },
+    "blur_1.5": {
+      "accuracy": 0.9953333333333333,
+      "accuracy_drop": 0.004666666666666708,
+      "uncertainty_delta": 0.020056551322340965
+    },
+    "blur_2.0": {
+      "accuracy": 0.9553333333333334,
+      "accuracy_drop": 0.04466666666666663,
+      "uncertainty_delta": 0.017514904960989952
+    }
+  }
+}
