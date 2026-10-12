@@ -1,0 +1,11 @@
+torch>=2.0
+torchvision>=0.15
+timm>=0.9
+numpy
+pillow
+scipy
+scikit-learn
+pyyaml
+tqdm
+datasets  # only needed for `python -m src prepare`
+pytest
