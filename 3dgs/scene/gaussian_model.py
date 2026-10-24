@@ -21,6 +21,7 @@ from utils.sh_utils import RGB2SH
 from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
+from utils.split_half import cross_term, split_half_score
 
 try:
     from diff_gaussian_rasterization import SparseGaussianAdam
@@ -449,9 +450,13 @@ class GaussianModel:
 
         self.densification_postfix(new_xyz, new_features_dc, new_features_rest, new_opacities, new_scaling, new_rotation, new_tmp_radii)
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, radii):
-        grads = self.xyz_gradient_accum / self.denom
-        grads[grads.isnan()] = 0.0
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, radii, densify_score="vanilla"):
+        if densify_score == "split_half":
+            # Accumulators hold split-half cross terms <g_A, g_B> (see utils/split_half.py)
+            grads = split_half_score(self.xyz_gradient_accum, self.denom)
+        else:
+            grads = self.xyz_gradient_accum / self.denom
+            grads[grads.isnan()] = 0.0
 
         self.tmp_radii = radii
         self.densify_and_clone(grads, max_grad, extent)
@@ -470,4 +475,9 @@ class GaussianModel:
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
         self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter,:2], dim=-1, keepdim=True)
+        self.denom[update_filter] += 1
+
+    def add_split_half_stats(self, grad_a, grad_b, update_filter):
+        """Accumulate split-half cross terms instead of gradient norms (noise-unbiased densification)."""
+        self.xyz_gradient_accum[update_filter] += cross_term(grad_a[update_filter], grad_b[update_filter])
         self.denom[update_filter] += 1

@@ -20,6 +20,7 @@ from utils.general_utils import safe_state, get_expon_lr_func
 import uuid
 from tqdm import tqdm
 from utils.image_utils import psnr
+from utils.split_half import add_image_noise, gradient_snr, sample_split_mask, split_half_gradients, split_half_l1_losses
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
 try:
@@ -50,6 +51,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     gaussians = GaussianModel(dataset.sh_degree, opt.optimizer_type)
     scene = Scene(dataset, gaussians)
     gaussians.training_setup(opt)
+    if dataset.train_noise_std > 0:
+        noise_gen = torch.Generator().manual_seed(dataset.train_noise_seed)
+        for cam in scene.getTrainCameras():
+            cam.original_image = add_image_noise(cam.original_image, dataset.train_noise_std, noise_gen)
+        print(f"Added Gaussian noise (std={dataset.train_noise_std}) to {len(scene.getTrainCameras())} training images")
+    if opt.densify_score not in ("vanilla", "split_half"):
+        sys.exit(f"Unknown --densify_score {opt.densify_score}")
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
         gaussians.restore(model_params, opt)
@@ -139,6 +147,14 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         else:
             Ll1depth = 0
 
+        # Split-half statistics for noise-unbiased densification
+        use_split_half = (opt.densify_score == "split_half" and iteration < opt.densify_until_iter
+                          and iteration % opt.split_half_every == 0)
+        if use_split_half:
+            split_mask = sample_split_mask(image.shape[1], image.shape[2], opt.split_half_block, device=image.device)
+            loss_a, loss_b = split_half_l1_losses(image, gt_image, split_mask, weight=1.0 - opt.lambda_dssim)
+            grad_a, grad_b = split_half_gradients(loss_a, loss_b, viewspace_point_tensor)
+
         loss.backward()
 
         iter_end.record()
@@ -164,11 +180,19 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration < opt.densify_until_iter:
                 # Keep track of max radii in image-space for pruning
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+                if opt.densify_score == "split_half":
+                    if use_split_half:
+                        gaussians.add_split_half_stats(grad_a, grad_b, visibility_filter)
+                        if tb_writer and iteration % 100 == 0:
+                            _, _, snr = gradient_snr(grad_a[visibility_filter], grad_b[visibility_filter])
+                            tb_writer.add_scalar('split_half/median_gradient_snr', snr.median().item(), iteration)
+                else:
+                    gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                    gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold, radii)
+                    gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold, radii,
+                                                densify_score=opt.densify_score)
                 
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
                     gaussians.reset_opacity()

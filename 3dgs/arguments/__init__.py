@@ -56,6 +56,9 @@ class ModelParams(ParamGroup):
         self.train_test_exp = False
         self.data_device = "cuda"
         self.eval = False
+        # Controlled noisy-capture experiments: additive Gaussian noise on training images only
+        self.train_noise_std = 0.0
+        self.train_noise_seed = 0
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
@@ -97,6 +100,10 @@ class OptimizationParams(ParamGroup):
         self.depth_l1_weight_final = 0.01
         self.random_background = False
         self.optimizer_type = "default"
+        # Densification score: "vanilla" (mean gradient norm) or "split_half" (noise-unbiased, utils/split_half.py)
+        self.densify_score = "vanilla"
+        self.split_half_block = 1  # block size of the random pixel split (>1 for spatially correlated noise)
+        self.split_half_every = 1  # compute split-half statistics every k iterations
         super().__init__(parser, "Optimization Parameters")
 
 def get_combined_args(parser : ArgumentParser):

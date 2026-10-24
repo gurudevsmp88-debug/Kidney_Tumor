@@ -40,3 +40,16 @@ python -m pytest tests -q
 
 `tests/test_smoke.py` runs every stage on CPU using random dummy tensors and a tiny generated
 image folder; it needs no dataset or pretrained-weight downloads.
+
+## 3D Gaussian Splatting research code (`3dgs/`)
+
+`3dgs/` contains the official 3D Gaussian Splatting implementation (graphdeco-inria,
+non-commercial license in `3dgs/LICENSE.md`) extended with **split-half densification**, a
+noise-unbiased densification criterion for noisy captures. See
+[`3dgs/SPLIT_HALF_DENSIFICATION.md`](3dgs/SPLIT_HALF_DENSIFICATION.md) for the method, the
+toy results and the experiment plan. The CUDA extensions are git submodules:
+
+```bash
+git submodule update --init --recursive
+cd 3dgs && python -m pytest tests_split_half -q   # CPU tests for the new method
+```
