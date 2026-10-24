@@ -1,0 +1,29 @@
+# panolidar configuration. Lengths in metres, angles in radians unless noted.
+resolution:            # working resolution for training-free reconstruction
+  height: 128
+  width: 256
+
+stereo:
+  min_depth: 1.0
+  max_depth: 200.0
+  num_hypotheses: 64   # coarse log-depth sweep
+  refine_iters: 2      # coarse-to-fine passes around the best hypothesis
+  refine_hypotheses: 16
+  kernel: 5            # cost aggregation window (pixels)
+  temperature: 0.02
+  sigma_px: 0.5        # matching precision in pixels -> analytic triangulation sigma
+
+fusion:
+  align_scale: true    # fix the prior's global scale with well-conditioned stereo rays
+  align_max_sigma: 0.05
+  gate_k: 3.0          # stereo/prior disagreement (in combined sigmas) beyond which stereo is ignored
+  prior_sigma: 0.06    # default relative std of an external prior
+
+pairing:
+  min_baseline: 1.0
+  max_baseline: 15.0
+
+train:                 # reference student on synthetic streets (CPU)
+  height: 64
+  width: 128
+  stereo: {num_hypotheses: 32, refine_iters: 1, refine_hypotheses: 8, kernel: 3, temperature: 0.05}

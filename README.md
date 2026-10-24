@@ -53,3 +53,14 @@ toy results and the experiment plan. The CUDA extensions are git submodules:
 git submodule update --init --recursive
 cd 3dgs && python -m pytest tests_split_half -q   # CPU tests for the new method
 ```
+
+## Sparse-panorama metric 3D research code (`panolidar/`)
+
+`panolidar/` fuses a panoramic depth prior with two-panorama spherical triangulation, weighting
+each ray by its closed-form triangulation uncertainty (which grows towards the epipoles), and
+trains a student with uncertainty-weighted teacher geometry from a dense city capture. See
+[`panolidar/README.md`](panolidar/README.md).
+
+```bash
+cd panolidar && python -m pytest tests -q && python -m panolidar benchmark
+```
