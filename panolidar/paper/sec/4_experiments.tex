@@ -1,0 +1,116 @@
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Setup}
+
+\paragraph{Benchmark.}
+Real street panoramas with dense metric ground truth are not available to us at the time of writing
+(\cref{sec:limitations}). We therefore use procedural street canyons with exact depth: a ground plane,
+two building fa\c{c}ades 5--9\,m from the camera with random heights, end walls 60--120\,m away,
+3--7 box-shaped parked vehicles, and sky. All surfaces carry a view-independent multi-scale procedural
+texture. The reference panorama is at the origin and the partner $b$ metres further along the street,
+the hardest configuration, because the epipoles look down the street. Unless stated otherwise,
+panoramas are $256\times512$ and $b=4$\,m. The monocular prior is simulated as the true log-depth plus
+spatially smooth noise with 6\% standard deviation and a global scale error drawn uniformly in
+$\pm10\%$, with a constant self-reported $\sigma_p=0.06$; this matches the reported accuracy of current
+panoramic foundation models~\cite{lin2026dap}. Calibration uses six scenes (seeds $\geq1000$), disjoint
+from the ten test scenes, with ground truth standing in for the city teacher.
+
+\paragraph{Baselines.}
+All fusion variants share the same stereo, prior, scale alignment and gate, and differ only in the
+stereo uncertainty $\sigma_s$:
+\emph{constant} ($\sigma_s=s$) and \emph{confidence} ($\sigma_s=s/c$), with $s$ fitted on the same
+calibration rays and with the same robust estimator as ours; \emph{selection}, which takes per ray the
+source with the smaller calibrated $\sigma$; and our closed form without calibration
+($\sigma_\theta=0.5$\,px). We also report the prior alone, the scale-aligned prior and stereo alone.
+
+\paragraph{Metrics.}
+Median relative depth error overall and per bin of the angle between ray and baseline; the fraction
+of rays within 20\,cm; the fraction of errors within the predicted $1\sigma$ (ideal 0.683); the Gaussian
+negative log-likelihood (NLL) in log-depth, a proper scoring rule for the predicted distribution;
+and the area under the sparsification error curve (AUSE)~\cite{ilg2018uncertainty}.
+
+\subsection{Main results}
+
+\begin{table*}[t]
+  \centering
+  \resizebox{\linewidth}{!}{\input{tables/main.tex}}
+  \caption{\textbf{Main results} ($256\times512$, $b=4$\,m along the street, 10 test scenes). The
+  calibrated closed form is best or tied in accuracy near the epipoles and orthogonal to the baseline,
+  and is well calibrated. A geometry-blind confidence-based $\sigma_s$, fitted on the same calibration
+  data, is equally accurate in this in-distribution setting (see text).}
+  \label{tab:main}
+\end{table*}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/error_vs_angle.pdf}
+  \caption{Median relative error versus the angle between ray and baseline. Stereo diverges near the
+  epipoles; the scale-aligned prior is flat; fusion follows the lower envelope.}
+  \label{fig:angle}
+\end{figure}
+
+\Cref{tab:main,fig:angle} show the expected structure. Stereo alone is accurate orthogonal to the
+baseline (1.49\% at 60--90$^\circ$) but useless near the epipoles (21\%). The prior is uniformly
+mediocre, 6.95\% before and 3.94\% after scale alignment. Our fusion follows the lower envelope of the
+two, reducing the median error of the raw prior from 6.95\% to 1.61\% overall while remaining
+calibrated (0.71 of errors within $1\sigma$). Scale alignment matters: without it the error near the
+epipoles rises from 4.30\% to 6.51\%. Evaluating $\U$ at the stereo depth is equivalent once the
+precision is calibrated. The uncalibrated closed form ($\sigma_\theta=0.5$\,px) is as accurate overall
+but badly calibrated (NLL $-1.36$ vs.\ $-2.16$), which motivates \cref{eq:calibration}: on this
+benchmark, the implied matching precision varies by $6\times$ with the angle to the baseline.
+
+\paragraph{An honest negative result.}
+With its scale fitted on the same calibration rays, the geometry-blind \emph{confidence} baseline is as
+accurate as ours in-distribution (1.60\% vs.\ 1.61\%) and has a slightly better NLL. The match
+confidence already collapses near the epipoles, because all hypotheses project to nearly the same
+pixel, so it implicitly encodes much of the observability. The same holds when transferring the
+calibration to other baselines and resolutions (\cref{tab:transfer}): all calibrated fusion variants
+are within a few hundredths of a percent of each other. The closed form therefore does \emph{not}
+improve accuracy over a well-calibrated confidence in the absence of pose error on this benchmark.
+
+\begin{table*}[t]
+  \centering
+  \small
+  \input{tables/transfer.tex}
+  \caption{\textbf{Transfer without recalibration}: all methods are calibrated at $b=4$\,m and
+  $256\times512$, and evaluated at other baselines and resolutions (5 scenes; 3 at $512\times1024$).}
+  \label{tab:transfer}
+  \label{sec:transfer}
+\end{table*}
+
+\subsection{Where geometry matters: relative-pose error}
+\label{sec:pose}
+
+\begin{table*}[t]
+  \centering
+  \small
+  \input{tables/robustness.tex}
+  \caption{\textbf{Relative-pose error.} The partner pose given to all methods is perturbed by
+  rotation/translation noise with the stated per-axis standard deviations; images are rendered with the
+  true poses. ``refit'': geometry-blind baselines recalibrated on calibration scenes with the same pose
+  noise. Ours uses the known noise level in the closed-form pose term (\cref{eq:sigma}) and is
+  \emph{not} recalibrated. 8 test scenes.}
+  \label{tab:pose}
+\end{table*}
+
+Poses from GNSS/IMU or SfM are never exact, and their error affects rays very differently: by
+\cref{eq:sigma}, a translation error moves the depth by $\delta/\sin\gamma$, which is negligible
+for close points orthogonal to the baseline and dominant for distant points and near the epipoles. Match
+confidence cannot see this, because the cost curve can be sharply peaked at a wrong depth.
+\Cref{tab:pose} injects pose errors into the partner pose. For small errors ($0.1^\circ$, 2\,cm) all methods are
+equivalent. At $0.3^\circ$/5\,cm the geometry-blind uncertainties become over-confident (0.59--0.60 of
+errors within $1\sigma$), while ours stays calibrated (0.70) and has the best NLL, at equal accuracy.
+At $1^\circ$/10\,cm the pose term changes the result: ours reduces the median error from 3.93\% (best
+baseline) to 3.39\%, raises the in-$1\sigma$ fraction from 0.46 to 0.67, and improves the NLL from
+$-0.82$ to $-1.54$. Refitting the geometry-blind baselines under the same pose noise restores
+calibration at moderate noise. At large noise, however, it inflates $\sigma_s$ uniformly, so no ray
+remains reliable enough for scale alignment and the result degrades towards the unaligned prior
+(6.5--6.8\%). Ours keeps rays orthogonal to the baseline at close range trustworthy, because there the pose
+term is small. The pose term assumes the noise level is known; in practice it would come from the
+SfM covariance or the GNSS/IMU specification.
+
+\paragraph{Partners with different baselines.}
+With two partners at $+2$\,m and $-8$\,m, all calibrated variants reach the same accuracy
+(1.19--1.21\%) and similar calibration, \ie we observe no benefit of geometric weighting across
+partners on this benchmark.

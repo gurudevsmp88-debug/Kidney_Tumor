@@ -29,10 +29,33 @@ def depth_metrics(pred, gt, sigma_log=None, mask=None, thresholds=(0.05, 0.10, 0
     for t in thresholds:
         out[f'within_{t:g}m'] = (err < t).float().mean().item()
     if sigma_log is not None:
-        z = (p.log() - g.log()).abs() / sigma_log[valid].clamp_min(1e-9)
+        e = p.log() - g.log()
+        s = sigma_log[valid].clamp_min(1e-6)
+        z = e.abs() / s
         out['calib_1s'] = (z < 1).float().mean().item()
         out['calib_2s'] = (z < 2).float().mean().item()
+        out['nll'] = (torch.log(s) + 0.5 * z ** 2 + 0.5 * math.log(2 * math.pi)).mean().item()
+        out['ause'] = ause(e.abs(), s)
     return out
+
+
+def ause(abs_error, sigma, steps=20):
+    """Area under the sparsification-error curve (lower is better; 0 = sigma ranks errors perfectly).
+
+    Removes the most uncertain fraction of rays (by sigma) vs the largest-error fraction (oracle)
+    and integrates the gap in remaining mean error, normalised by the full mean error.
+    """
+    n = len(abs_error)
+    if n < steps:
+        return float('nan')
+    by_sigma = abs_error[torch.argsort(sigma, descending=True)]
+    oracle = torch.sort(abs_error, descending=True).values
+    fracs = torch.linspace(0, 0.95, steps)
+    gaps = []
+    for f in fracs.tolist():
+        k = int(f * n)
+        gaps.append((by_sigma[k:].mean() - oracle[k:].mean()).item())
+    return float(sum(gaps) / len(gaps) / abs_error.mean().clamp_min(1e-12).item())
 
 
 def metrics_by_baseline_angle(pred, gt, rays, baseline, sigma_log=None,

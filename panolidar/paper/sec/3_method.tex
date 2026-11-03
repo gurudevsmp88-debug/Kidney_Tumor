@@ -1,0 +1,129 @@
+\section{Method}
+\label{sec:method}
+
+\paragraph{Setting.}
+We reconstruct a reference equirectangular panorama $I_1$ of width $W$, given a monocular depth prior
+and optionally one or more partner panoramas $I_k$ with relative poses $(\mathbf{R}_k,\bvec_k)$
+expressed in the reference camera frame (from GNSS/IMU or structure from motion
+\cite{schoenberger2016sfm}). Every pixel defines a unit ray $\dvec$; we estimate its metric depth
+$z$ (distance along $\dvec$) and an uncertainty. All fusion happens in log-depth $\ell=\log z$, where
+relative errors are additive.
+
+\subsection{Closed-form spherical triangulation uncertainty}
+\label{sec:sigma}
+
+Consider one partner at $\bvec$ and the point $\mathbf{X}=z\dvec$. In the triangle
+$(\mathbf{0},\bvec,\mathbf{X})$ let $\alpha$ be the angle at the reference camera between $\dvec$ and
+$\bvec$, $\beta$ the angle at the partner, and $\gamma=\pi-\alpha-\beta$ the parallax angle at
+$\mathbf{X}$. The law of sines gives
+\begin{equation}
+  z = \|\bvec\|\,\frac{\sin\beta}{\sin\gamma}.
+\end{equation}
+Matching perturbs the two observed directions by small angles within the epipolar plane;
+out-of-plane components do not change $z$ to first order. Differentiating,
+$\partial z/\partial\alpha=\|\bvec\|\sin\beta\cos\gamma/\sin^2\gamma$ and
+$\partial z/\partial\beta=\|\bvec\|\sin\alpha/\sin^2\gamma$.
+A rotation error of the partner with per-axis standard deviation $\sigma_R$ turns its ray within the
+epipolar plane by the same angle. A position error with per-axis standard deviation $\sigma_t$ shifts
+the partner ray; only its in-plane component perpendicular to that ray matters, and moves the
+intersection by $\delta/\sin\gamma$. With angular matching precision $\sigma_\theta$ on both rays we
+obtain
+\begin{equation}
+  \sigma_z^2 = \frac{\|\bvec\|^2}{\sin^4\gamma}\Big[\sigma_\theta^2\sin^2\beta\cos^2\gamma
+  + (\sigma_\theta^2+\sigma_R^2)\sin^2\alpha\Big] + \frac{\sigma_t^2}{\sin^2\gamma}.
+  \label{eq:sigma}
+\end{equation}
+In the far field ($z\gg\|\bvec\|$, $\beta\to\pi-\alpha$) and without pose error this reduces to
+$\sigma_z\approx\sqrt{2}\,\sigma_\theta z^2/(\|\bvec\|\sin\alpha)$: quadratic in depth, inversely
+proportional to the baseline, and divergent at the epipoles $\alpha\in\{0,\pi\}$. We compute all sines
+from cross-product norms; the naive $\sqrt{1-\cos^2}$ loses all precision in single precision
+for the tiny parallax angles of distant points. A Monte Carlo simulation with isotropic angular
+noise on both rays and random pose perturbations agrees with \cref{eq:sigma} within 0.5\% across
+all tested configurations (unit tests in the code release).
+
+We denote by $\U(\dvec)=\sigma_z/z$ the log-depth uncertainty for \emph{unit} matching precision
+$\sigma_\theta = 2\pi/W$ (one pixel) without pose error, and by $P(\dvec)$ the pose-only term. $\U$
+contains all of the geometry: depth, baseline length and direction, and panorama resolution.
+Because $\U$ depends on the unknown depth, we evaluate it at the (scale-aligned) prior depth rather than
+at the stereo estimate, which is unreliable exactly where $\U$ is large.
+
+\subsection{Spherical plane-sweep stereo}
+\label{sec:stereo}
+
+For each reference ray and log-depth hypothesis we project $z\dvec$ into the partner panorama and
+sample it with longitude wrap-around. We sweep 64 log-spaced hypotheses in $[1,200]$\,m, followed by
+two refinement passes with 16 hypotheses each around the arg-max, and use the soft-arg-min of the
+final pass. The matching cost is either the box-aggregated L1 difference or $1-$ZNCC over a $5\times5$
+window; ZNCC is invariant to the gain and bias changes between captures. As a match confidence we use
+the distinctiveness of the coarse cost curve, $c=(\operatorname{med}_h C_h-\min_h C_h)/\operatorname{med}_h C_h$,
+which vanishes both near the epipoles, where all hypotheses project to almost the same pixel, and in
+textureless or occluded regions.
+
+\subsection{Geometry-conditioned calibration}
+\label{sec:calibration}
+
+\Cref{eq:sigma} is exact \emph{given} $\sigma_\theta$, but the effective matching precision is not a
+constant number of pixels. Window aggregation, texture, the cost function and the bounded depth search
+all matter. On our benchmark, the implied precision varies from $0.1$\,px near the epipoles to
+$0.6$\,px orthogonal to the baseline. We therefore keep the geometry in closed form and calibrate a
+monotone map from $\U$ to the observed error:
+\begin{equation}
+  \sigma_s(\dvec) = \sqrt{\big(a(c)\,\U(\dvec)^{\kappa}\big)^2 + P(\dvec)^2},
+  \label{eq:calibration}
+\end{equation}
+with a shared exponent $\kappa$ and a scale $a(c)$ that is piecewise constant and non-increasing in
+the match confidence $c$ (six quantile bins). The pose term $P$ has no free parameters. The
+parameters are fitted on calibration rays with known depth---in practice the city teacher of
+\cref{sec:teacher}. We select $\kappa$ by maximizing a Student-$t$ likelihood ($\nu=3$), which
+tolerates occlusions and mismatches. We then fit each $a$ by Gaussian maximum likelihood on the
+$t$-inliers, because fusion needs a standard deviation and the $t$-scale under-estimates it by about
+20\% for Gaussian errors. Rays deep inside the epipolar cones are excluded from fitting: there the
+bounded depth range truncates the errors. $\kappa=1$ with a single bin recovers the pure closed form
+with constant $\sigma_\theta$.
+
+\subsection{Epipole-aware fusion}
+\label{sec:fusion}
+
+\paragraph{Scale alignment.}
+Monocular metric depth is often off by a per-image scale factor. We estimate a global log-scale
+offset as the precision-weighted median of $\mu_s-\mu_p$ over well-conditioned rays
+($\sigma_s<0.05$, $c>0.5$), with weights $c/\sigma_s^2$, and add it to the prior.
+
+\paragraph{Gated Bayesian fusion.}
+Let the prior be $\mathcal{N}(\mu_p,\sigma_p^2)$ in log-depth and partner $k$ give
+$\mathcal{N}(\mu_k,\sigma_k^2)$ with confidence $c_k$. Occlusions, moving objects and mismatches
+produce gross errors, so we model the disagreement $\delta_k=\mu_k-\mu_p$ as a mixture of an inlier
+Gaussian $\mathcal{N}(0,\sigma_p^2+\sigma_k^2)$ with prior probability $\pi$ and a uniform outlier
+over the log-depth range $L$:
+\begin{equation}
+  w_k = c_k\,\frac{\pi\,\mathcal{N}(\delta_k;0,\sigma_p^2+\sigma_k^2)}
+  {\pi\,\mathcal{N}(\delta_k;0,\sigma_p^2+\sigma_k^2)+(1-\pi)/L}.
+\end{equation}
+The posterior is
+\begin{equation}
+  \frac{1}{\sigma^2}=\frac{1}{\sigma_p^2}+\sum_k\frac{w_k}{\sigma_k^2},\qquad
+  \mu=\sigma^2\Big(\frac{\mu_p}{\sigma_p^2}+\sum_k\frac{w_k\,\mu_k}{\sigma_k^2}\Big).
+\end{equation}
+Near the epipoles $\sigma_k\to\infty$ and the result is the scale-aligned prior; orthogonal to the
+baseline the stereo dominates. With a single panorama the posterior is the prior. Every operation is
+differentiable, so the same module can be placed inside a learned network (\cref{sec:teacher}).
+
+\subsection{City as teacher}
+\label{sec:teacher}
+
+A dense capture of one city, with many panoramas per street, is reconstructed once with multi-view
+geometry (SfM/MVS \cite{schoenberger2016sfm,schoenberger2016mvs} or surface splatting
+\cite{huang2024twodgs}). A teacher point $\mathbf{X}$ observed from centres $\mathbf{C}_i$ at
+distances $r_i$ along unit directions $\mathbf{u}_i$ has triangulation information
+$\boldsymbol{\Lambda}=\sum_i(\mathbf{I}-\mathbf{u}_i\mathbf{u}_i^\top)/(r_i\sigma_\theta)^2$, and
+covariance $\boldsymbol{\Sigma}=\boldsymbol{\Lambda}^{-1}$, computed in double precision because
+single-view points are nearly singular. For a student panorama we render two-layer targets: the first
+teacher surface along each ray (visible), and the first surface behind it (amodal: behind parked
+cars, around corners), which only other panoramas of the city observe. Each target carries the
+variance $\dvec^\top\boldsymbol{\Sigma}\dvec$ along the student ray. A student predicting
+$(\mu,\sigma)$ in log-depth is trained with the Gaussian negative log-likelihood whose variance is
+$\sigma^2+\dvec^\top\boldsymbol{\Sigma}\dvec/z^2$, so poorly triangulated teacher points supervise
+weakly instead of wrongly. The same teacher provides the calibration rays for \cref{eq:calibration}.
+Our reference student shares an equirectangular encoder (with longitude wrap-around padding) between
+a prior head, the stereo cost volume on learned features, the closed-form uncertainty with a learned
+global scale, the fusion of \cref{sec:fusion}, and an amodal second-layer head.

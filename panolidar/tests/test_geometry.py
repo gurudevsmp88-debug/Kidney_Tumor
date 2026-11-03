@@ -37,7 +37,8 @@ def test_project_inverts_backproject_with_rotation():
     u, v = angles_to_pixels(theta, phi, 16, 32)
     uu, vv = torch.meshgrid(torch.arange(16.0), torch.arange(32.0), indexing='ij')
     assert torch.allclose(dist, depth, atol=1e-4)
-    assert torch.allclose(v, uu, atol=1e-3) and torch.allclose(u % 32, vv, atol=1e-3)
+    wrapped = (u - vv + 16) % 32 - 16  # column difference modulo the width (seam-safe)
+    assert torch.allclose(v, uu, atol=1e-3) and wrapped.abs().max() < 1e-3
     R12, t12 = relative_pose(torch.eye(3), torch.zeros(3), R, C)
     assert torch.allclose(t12, C) and torch.allclose(R12, R)
 

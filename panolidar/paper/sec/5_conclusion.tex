@@ -1,0 +1,36 @@
+\section{Limitations and Future Work}
+\label{sec:limitations}
+
+\paragraph{No real data yet.}
+All results in this draft are on procedural scenes with a simulated prior. Real panoramas add
+non-Lambertian surfaces, vegetation, sky, rolling-shutter and stitching artefacts, and a prior whose
+errors are spatially structured in ways our simulation does not capture. The decisive experiment is
+KITTI-360~\cite{liao2022kitti360}: its two 180$^\circ$ fisheye cameras (MEI model~\cite{mei2007single})
+cover nearly the full sphere and can be resampled to equirectangular images, and accumulated LiDAR
+provides metric ground truth including occluded regions. The protocol is: pairs of frames along
+the trajectory at 2--8\,m spacing, priors from Depth Any Panoramas~\cite{lin2026dap} and
+DA360~\cite{da360}, calibration on training sequences, and evaluation on held-out sequences
+against Splatter-360~\cite{chen2025splatter360}, PanSplat~\cite{zhang2024pansplat} and pointmap
+regressors \cite{leroy2024mast3r,wang2025vggt} run on cube faces.
+
+\paragraph{The learned student is not evaluated.}
+The city-as-teacher training (\cref{sec:teacher}) is implemented, but this draft evaluates only the
+training-free fusion. Whether amodal supervision and uncertainty-weighted teacher losses improve a
+foundation-model student is untested.
+
+\paragraph{Modelling assumptions.}
+Partners share the reference image, so treating several partners as independent overstates the
+precision. Moving objects are rejected as outliers, and their depth falls back to the prior.
+Relative-pose error enters $\sigma_s$ only through a per-axis standard deviation. When poses come from
+SfM, their actual covariance should be propagated instead.
+
+\section{Conclusion}
+Two panoramas carry precise metric information about a scene, but only away from their epipoles.
+We showed that a closed-form, pose-aware triangulation uncertainty, combined with a small
+geometry-conditioned calibration of the matching precision, makes this observability explicit.
+Fusing on that basis with a monocular prior yields metric depth with calibrated per-ray
+uncertainty that falls back gracefully where geometry is uninformative. In controlled experiments it
+reduces the error of a simulated foundation prior by more than $4\times$. In-distribution it is
+matched by a well-calibrated geometry-blind confidence, but it remains calibrated, and becomes clearly
+more accurate, once the relative pose is uncertain, which is the normal case for street-level capture. Establishing how close this brings
+real street-level panoramas to LiDAR accuracy is the next step.

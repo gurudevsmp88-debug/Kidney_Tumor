@@ -1,0 +1,21 @@
+\begin{abstract}
+Panoramic depth foundation models predict a depth for every viewing direction, but their metric
+error of several percent is far from the centimetre accuracy of LiDAR. Two panoramas captured a few
+metres apart can triangulate much more precisely---yet only in some directions: along the baseline,
+which for street-level capture is exactly the direction of travel, depth becomes unobservable. We
+make this observability explicit. We derive a closed-form, pose-aware expression for the depth
+uncertainty of spherical two-view triangulation for every ray, which diverges at the epipoles and
+accounts for matching noise and relative-pose error. Combined with a two-parameter
+geometry-conditioned calibration of the photometric matching precision, this yields calibrated
+per-ray stereo uncertainties that we fuse with a learned panoramic prior in log-depth, after
+aligning the prior's metric scale to well-conditioned rays and gating occlusions with a mixture
+model. The result is metric depth with a calibrated uncertainty on every ray, degrading gracefully
+to the prior where geometry offers no information. We further describe how a dense city capture can
+act as its own teacher, supplying uncertainty-weighted and amodal supervision as well as the
+calibration data. On a procedural street benchmark with exact ground truth, our fusion reduces the
+median relative error of a simulated foundation prior from 6.95\% to 1.61\% with calibrated
+uncertainties. A geometry-blind confidence-based uncertainty fitted on the same data is equally
+accurate in-distribution. Under relative-pose error, the closed form stays calibrated without refitting,
+and at $1^\circ$/10\,cm it lowers the error from 3.93\% to 3.39\%. Evaluation on real captures with LiDAR ground truth is left to future
+work and is required before drawing conclusions about real-world accuracy.
+\end{abstract}

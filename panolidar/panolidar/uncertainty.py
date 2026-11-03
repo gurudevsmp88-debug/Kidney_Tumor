@@ -18,6 +18,17 @@ Far field (z >> |b|, beta -> pi - alpha): sigma_z ~= sqrt(2) z^2 sigma_ang / (|b
 Near the epipoles (alpha -> 0 or pi), gamma -> 0 and sigma_z -> infinity: depth
 along the baseline direction is unobservable from the two panoramas.
 
+Relative-pose error (camera 1 is the reference frame):
+  * a rotation error of camera 2 with per-axis std sigma_rot turns ray 2 within the
+    epipolar plane by the same angle: it adds sigma_rot^2 to ray 2's angular variance;
+  * a position error of camera 2 with per-axis std sigma_trans shifts ray 2's line;
+    only its in-plane component perpendicular to ray 2 matters, and it moves the
+    triangulated depth by delta / sin(gamma).
+Hence
+  sigma_z^2 = |b|^2 / sin^4 gamma * [sigma_ang^2 sin^2 beta cos^2 gamma
+                                     + (sigma_ang^2 + sigma_rot^2) sin^2 alpha]
+              + sigma_trans^2 / sin^2 gamma.
+
 Multi-view point covariance (teacher)
 -------------------------------------
 A point seen from centres C_i at distances r_i with angular noise sigma_ang has
@@ -29,13 +40,15 @@ import math
 import torch
 
 
-def triangulation_depth_std(rays, depth, baseline, sigma_ang, max_std=1e4):
+def triangulation_depth_std(rays, depth, baseline, sigma_ang, max_std=1e4, sigma_rot=0.0, sigma_trans=0.0):
     """Analytic std of camera-1 depth for two-view spherical triangulation.
 
     rays: (..., 3) unit directions in camera-1 frame
-    depth: (...) depth hypothesis along each ray (e.g. the stereo estimate)
+    depth: (...) depth hypothesis along each ray (e.g. the prior depth)
     baseline: (3,) camera-2 centre in camera-1 frame
     sigma_ang: angular matching std in radians (e.g. sigma_px * 2*pi / width)
+    sigma_rot: per-axis std (radians) of the relative rotation error of camera 2
+    sigma_trans: per-axis std (depth units) of the relative position error of camera 2
     Returns (...) std in the units of depth, clamped to max_std.
     """
     b = baseline.to(rays.dtype)
@@ -49,8 +62,10 @@ def triangulation_depth_std(rays, depth, baseline, sigma_ang, max_std=1e4):
     # parallax angle between the two rays to X
     sin_gamma = torch.linalg.cross(rays, to_x, dim=-1).norm(dim=-1) / to_x_norm
     cos_gamma = (rays * to_x).sum(-1) / to_x_norm
-    num = sigma_ang ** 2 * b_norm ** 2 * (sin_alpha ** 2 + (sin_beta * cos_gamma) ** 2)
-    var = num / sin_gamma.clamp_min(1e-12) ** 4
+    sin_g = sin_gamma.clamp_min(1e-12)
+    num = b_norm ** 2 * (sigma_ang ** 2 * (sin_beta * cos_gamma) ** 2
+                         + (sigma_ang ** 2 + sigma_rot ** 2) * sin_alpha ** 2)
+    var = num / sin_g ** 4 + sigma_trans ** 2 / sin_g ** 2
     return torch.sqrt(var).clamp(max=max_std)
 
 

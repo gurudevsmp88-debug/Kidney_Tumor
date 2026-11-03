@@ -38,11 +38,15 @@ def test_fusion_math_and_gating():
     mu, s, w = fuse_log_depth(mu_p, s_p)
     assert torch.equal(mu, mu_p) and torch.equal(s, s_p) and not w.any()
     mu_s, s_s = torch.full((1, 2, 2), 0.05), torch.full((1, 2, 2), 0.1)
-    mu, s, w = fuse_log_depth(mu_p, s_p, mu_s, s_s, torch.ones(1, 2, 2), gate_k=1e6)
+    mu, s, w = fuse_log_depth(mu_p, s_p, mu_s, s_s, torch.ones(1, 2, 2), gate='none')
     assert torch.allclose(mu, torch.full_like(mu, 0.025)) and torch.allclose(s, torch.full_like(s, 0.1 / math.sqrt(2)))
     outlier = torch.full((1, 2, 2), 2.0)  # ~14 combined sigmas away: stereo must be ignored
-    mu, _, w = fuse_log_depth(mu_p, s_p, outlier, s_s, torch.ones(1, 2, 2))
-    assert w.max() < 1e-2 and mu.abs().max() < 1e-2
+    for gate in ('mixture', 'quartic'):
+        mu, _, w = fuse_log_depth(mu_p, s_p, outlier, s_s, torch.ones(1, 2, 2), gate=gate)
+        assert w.max() < 1e-2 and mu.abs().max() < 1e-2
+    inlier = torch.full((1, 2, 2), 0.05)  # well within the combined sigma: kept
+    _, _, w = fuse_log_depth(mu_p, s_p, inlier, s_s, torch.ones(1, 2, 2), gate='mixture')
+    assert w.min() > 0.9
 
 
 def test_scale_alignment_recovers_offset():

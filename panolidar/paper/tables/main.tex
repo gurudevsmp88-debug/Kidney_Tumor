@@ -1,0 +1,17 @@
+\begin{tabular}{l ccccc c ccc}
+\toprule
+ & \multicolumn{5}{c}{Median rel.\ error (\%) $\downarrow$, by angle to baseline} & $<$20\,cm (\%) $\uparrow$ & Cal.\ $1\sigma$ & NLL $\downarrow$ & AUSE $\downarrow$ \\
+\cmidrule(lr){2-6}
+Method & 0--10$^\circ$ & 10--30$^\circ$ & 30--60$^\circ$ & 60--90$^\circ$ & all & all & (0.68) & all & all \\
+\midrule
+Prior only & 6.81 & 7.04 & 6.99 & 6.92 & 6.95 & 29.80 & 0.44 & -0.73 & 0.481 \\
+Prior + scale alignment & 4.45 & 4.03 & 3.83 & 3.98 & 3.94 & 47.12 & 0.69 & -1.40 & 0.534 \\
+Stereo only & 21.07 & 3.03 & 2.05 & 1.49 & 1.78 & 68.99 & \textbf{0.68} & 26.04 & 0.386 \\
+\midrule
+Fusion, constant $\sigma_s$ & 4.90 & 2.41 & 1.76 & 1.48 & 1.64 & 73.66 & 0.73 & -2.17 & \textbf{0.329} \\
+Fusion, confidence $\sigma_s$ & 4.49 & \textbf{2.35} & \textbf{1.73} & 1.43 & \textbf{1.60} & \textbf{74.10} & 0.73 & \textbf{-2.22} & 0.331 \\
+Selection (min.\ $\sigma$) & 4.45 & 3.07 & 2.03 & 1.47 & 1.74 & 70.60 & 0.70 & -2.03 & 0.354 \\
+Ours, closed form ($\sigma_{px}{=}0.5$) & 4.38 & 3.03 & 1.91 & 1.43 & 1.67 & 72.17 & 0.63 & -1.36 & 0.461 \\
+Ours (calibrated) & \textbf{4.30} & 2.63 & 1.77 & \textbf{1.41} & 1.61 & 73.63 & 0.71 & -2.16 & 0.361 \\
+\bottomrule
+\end{tabular}

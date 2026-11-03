@@ -1,0 +1,40 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Monocular panoramic depth.}
+Early 360$^\circ$ depth networks fuse equirectangular and cubemap features
+\cite{wang2020bifuse,jiang2021unifuse,li2022omnifusion}, or merge perspective tangent-image
+predictions \cite{rey2022360monodepth}. Recent foundation models predict metric depth for indoor
+and outdoor panoramas \cite{lin2026dap,da360} or lift perspective foundation models such as Depth
+Anything~\cite{yang2024depthv2} to the sphere \cite{pager2026}. Perspective metric-depth models
+\cite{yin2023metric3d,piccinelli2024unidepth,bochkovskii2025depthpro} share the same limitation: a
+single image constrains metric scale only through learned priors. We treat any such model as a
+prior with a self-reported uncertainty and correct its scale with geometry.
+
+\paragraph{Multi-view panoramic reconstruction.}
+Omnidirectional stereo with spherical sweeps dates back to OmniMVS~\cite{won2019omnimvs}.
+Generalizable radiance-field and Gaussian-splatting methods for wide-baseline panoramas
+\cite{chen2023panogrf,chen2025splatter360,zhang2024pansplat} build spherical cost volumes and are
+trained for view synthesis. Pointmap regressors \cite{wang2024dust3r,leroy2024mast3r,wang2025vggt}
+reconstruct from unposed perspective images. None of these models the per-direction observability
+of the two-view geometry explicitly or outputs calibrated metric uncertainty.
+
+\paragraph{Triangulation uncertainty.}
+First-order error propagation for triangulation is classical
+\cite{hartley2003multiple,forstner2016photogrammetric}, and multi-view stereo pipelines
+\cite{schoenberger2016mvs} use triangulation angles as heuristics for view selection. We derive
+the closed form for spherical cameras including relative-pose error, use it as the scale-free
+backbone of a calibrated uncertainty, and fuse with it rather than threshold it.
+
+\paragraph{Uncertainty in depth estimation.}
+Learned aleatoric uncertainty~\cite{kendall2017uncertainties}, self-supervised depth
+uncertainty~\cite{poggi2020uncertainty} and sparsification metrics~\cite{ilg2018uncertainty}
+evaluate how well predicted uncertainty ranks errors; calibrated regression~\cite{kuleshov2018calibrated}
+recalibrates it post hoc. Our calibration is conditioned on a closed-form geometric quantity that
+also carries relative-pose error, which a learned confidence cannot observe (\cref{sec:pose}).
+
+\paragraph{Teacher supervision from more views.}
+Behind the Scenes~\cite{wimbauer2023bts} and its distilled variant~\cite{han2024kdbts} train
+single-view density fields using additional views as supervision on KITTI-360. Our teacher is a
+metric multi-view reconstruction of a whole city whose per-point covariance weights the loss, and
+which also supplies amodal targets and the calibration data.
