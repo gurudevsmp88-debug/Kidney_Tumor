@@ -124,3 +124,20 @@ def test_cli_reconstruct_on_posed_folder(tmp_path):
     single = cli.main(['reconstruct', '--scene', str(tmp_path), '--ref', '0', '--single', '--height', '64',
                        '--width', '128', '--out', str(tmp_path / 'single.ply')])
     assert single['stereo_depth'] is None
+
+
+def test_scale_alignment_shrinks_with_few_inconsistent_rays():
+    gen = torch.Generator().manual_seed(0)
+    mu_p = torch.zeros(1, 32, 32)
+    # many consistent rays: offset recovered, shrinkage negligible
+    mu_s = 0.08 + 0.005 * torch.randn(1, 32, 32, generator=gen)
+    off = align_prior_scale(mu_p, mu_s, torch.full_like(mu_s, 0.01), torch.ones_like(mu_s), scale_prior_std=0.1)
+    assert abs(off.item() - 0.08) < 0.01
+    # few, wildly inconsistent rays: offset shrunk towards zero
+    conf = torch.zeros(1, 32, 32)
+    conf[0, :2, :8] = 1.0
+    mu_s = 0.5 * torch.randn(1, 32, 32, generator=gen) + 0.3
+    raw = align_prior_scale(mu_p, mu_s, torch.full_like(mu_s, 0.01), conf)
+    shrunk, std = align_prior_scale(mu_p, mu_s, torch.full_like(mu_s, 0.01), conf, scale_prior_std=0.1,
+                                    return_std=True)
+    assert abs(shrunk.item()) < 0.5 * abs(raw.item()) and std.item() < 0.1

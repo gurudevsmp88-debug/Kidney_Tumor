@@ -8,7 +8,7 @@ from .model import PanoLidarNet
 from .pipeline import reconstruct
 from .sphere import equirect_rays
 from .synthetic import random_street, render_panorama, synthetic_prior
-from .teacher import build_teacher_points, gaussian_nll_log, layered_targets
+from .teacher import build_teacher_points, gaussian_nll_log, layered_targets, perturb_teacher
 
 IDENTITY = torch.eye(3)
 
@@ -57,13 +57,19 @@ def format_benchmark(table, keys=('median_rel', 'within_0.1m', 'within_0.2m', 'c
     return '\n'.join(lines)
 
 
-def make_training_sample(seed, height, width, sigma_ang, n_teacher_views=7, spacing=3.0):
-    """One synthetic sample: two student panoramas plus layered targets from a denser 'city' capture."""
+def make_training_sample(seed, height, width, sigma_ang, n_teacher_views=7, spacing=3.0, teacher_sigma_ang=None,
+                         teacher_noise=False):
+    """One synthetic sample: two student panoramas plus layered targets from a denser 'city' capture.
+
+    teacher_sigma_ang: angular precision of the teacher reconstruction (defaults to sigma_ang).
+    teacher_noise: displace teacher points by draws from their own covariance (a realistic MVS
+    teacher); 'clean_targets' always holds the exact layered targets for evaluation.
+    """
     g = torch.Generator().manual_seed(seed)
     scene = random_street(seed)
     baseline = 2.0 + 4.0 * torch.rand((), generator=g).item()
     c1, c2 = torch.zeros(3), torch.tensor([0.0, baseline, 0.0])
-    img1, _ = render_panorama(scene, tuple(c1.tolist()), height, width)
+    img1, gt1 = render_panorama(scene, tuple(c1.tolist()), height, width)
     img2, _ = render_panorama(scene, tuple(c2.tolist()), height, width)
     # Teacher views: a denser drive along the street, with sideways offsets to see behind objects.
     depths, poses = [], []
@@ -73,17 +79,31 @@ def make_training_sample(seed, height, width, sigma_ang, n_teacher_views=7, spac
         c = torch.tensor([x, y, 0.0])
         depths.append(render_panorama(scene, tuple(c.tolist()), height, width)[1])
         poses.append((IDENTITY, c))
-    teacher = build_teacher_points(depths, poses, sigma_ang)
-    targets = layered_targets(teacher['points'], teacher['cov'], IDENTITY, c1, height, width)
-    return {'image1': img1, 'image2': img2, 'pose1': (IDENTITY, c1), 'pose2': (IDENTITY, c2),
-            'targets': targets, 'teacher_points': len(teacher['points'])}
+    teacher = build_teacher_points(depths, poses, teacher_sigma_ang or sigma_ang)
+    clean = layered_targets(teacher['points'], teacher['cov'], IDENTITY, c1, height, width,
+                            n_views=teacher['n_views'])
+    targets = clean
+    if teacher_noise:
+        noisy = perturb_teacher(teacher['points'], teacher['cov'], g)
+        targets = layered_targets(noisy, teacher['cov'], IDENTITY, c1, height, width, n_views=teacher['n_views'])
+    return {'image1': img1, 'image2': img2, 'pose1': (IDENTITY, c1), 'pose2': (IDENTITY, c2), 'gt_depth': gt1,
+            'targets': targets, 'clean_targets': clean, 'teacher_points': len(teacher['points'])}
 
 
-def student_loss(out, targets):
+def student_loss(out, targets, weighting='variance', min_views=2):
+    """weighting: 'variance' (teacher covariance in the NLL, ours), 'uniform' (all targets equal),
+    'min_views' (uniform, but only targets seen by >= min_views teacher views)."""
     t = {k: v.unsqueeze(0) for k, v in targets.items()}
-    loss_fused = gaussian_nll_log(out['mu'], out['sigma'], t['depth1'], t['var1'])
-    loss_prior = gaussian_nll_log(out['prior_mu'], out['prior_sigma'], t['depth1'], t['var1'])
-    loss_layer2 = gaussian_nll_log(out['layer2_mu'], out['layer2_sigma'], t['depth2'], t['var2'])
+    d1, d2 = t['depth1'], t['depth2']
+    v1, v2 = t['var1'], t['var2']
+    if weighting != 'variance':
+        v1 = v2 = None
+        if weighting == 'min_views':
+            d1 = torch.where(t['views1'] >= min_views, d1, torch.full_like(d1, math.inf))
+            d2 = torch.where(t['views2'] >= min_views, d2, torch.full_like(d2, math.inf))
+    loss_fused = gaussian_nll_log(out['mu'], out['sigma'], d1, v1)
+    loss_prior = gaussian_nll_log(out['prior_mu'], out['prior_sigma'], d1, v1)
+    loss_layer2 = gaussian_nll_log(out['layer2_mu'], out['layer2_sigma'], d2, v2)
     return loss_fused + loss_prior + 0.5 * loss_layer2, {
         'fused': loss_fused.item(), 'prior': loss_prior.item(), 'layer2': loss_layer2.item()}
 

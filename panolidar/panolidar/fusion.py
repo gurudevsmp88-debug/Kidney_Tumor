@@ -30,24 +30,40 @@ def weighted_median(values, weights):
     return v[idx].squeeze(0)
 
 
-def align_prior_scale(mu_p, mu_s, sigma_s, confidence, max_sigma=0.05, min_confidence=0.5, min_rays=10):
+def align_prior_scale(mu_p, mu_s, sigma_s, confidence, max_sigma=0.05, min_confidence=0.5, min_rays=10,
+                      scale_prior_std=None, return_std=False):
     """Global log-scale offset that aligns the prior to reliable triangulated rays.
 
-    Monocular metric depth often has a per-image scale error; well-conditioned
-    stereo rays fix it. Uses a precision-weighted median of (mu_s - mu_p) per image.
-    Returns the offset (B,), 0 where too few reliable rays exist.
+    Monocular metric depth often has a per-image scale error; well-conditioned stereo rays fix it.
+    The measurement is a precision-weighted median of (mu_s - mu_p) over reliable rays, with a robust
+    standard error 1.2533 * 1.4826 * MAD / sqrt(n) (stereo errors on neighbouring rays are correlated,
+    so n is the number of rays divided by `correlation_rays` = 25, i.e. ~5x5 aggregation windows).
+    If scale_prior_std is given, the offset is the Gaussian posterior mean under the prior
+    N(0, scale_prior_std^2): few or inconsistent rays shrink it towards zero.
+    Returns the offset (B,) [and its posterior std (B,) if return_std].
     """
-    offsets = []
+    offsets, stds = [], []
     for b in range(mu_p.shape[0]):
         good = (sigma_s[b] < max_sigma) & (confidence[b] > min_confidence)
         good &= torch.isfinite(mu_s[b]) & torch.isfinite(mu_p[b])
         if good.sum() < min_rays:
             offsets.append(mu_p.new_zeros(()))
+            stds.append(mu_p.new_tensor(float(scale_prior_std or 0.0)))
             continue
-        diff = (mu_s[b] - mu_p[b])[good]
-        weight = confidence[b][good] / sigma_s[b][good] ** 2
-        offsets.append(weighted_median(diff.detach(), weight.detach()))
-    return torch.stack(offsets)
+        diff = (mu_s[b] - mu_p[b])[good].detach()
+        weight = (confidence[b][good] / sigma_s[b][good] ** 2).detach()
+        est = weighted_median(diff, weight)
+        n_eff = max(float(good.sum()) / 25.0, 1.0)
+        se = 1.2533 * 1.4826 * (diff - est).abs().median() / math.sqrt(n_eff)
+        if scale_prior_std is not None:
+            shrink = scale_prior_std ** 2 / (scale_prior_std ** 2 + se ** 2)
+            offsets.append(est * shrink)
+            stds.append(torch.sqrt(shrink * se ** 2))
+        else:
+            offsets.append(est)
+            stds.append(se)
+    out = torch.stack(offsets)
+    return (out, torch.stack(stds)) if return_std else out
 
 
 def inlier_weight(delta, var_tot, confidence, gate='mixture', gate_k=3.0, inlier_prior=0.9, log_range=6.0):

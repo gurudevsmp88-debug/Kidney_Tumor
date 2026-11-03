@@ -79,7 +79,8 @@ def reconstruct(image1, pose1, prior_mu, prior_sigma, image2=None, pose2=None, c
             best = min(range(len(results)), key=lambda k: sigmas[k].median().item())
             st_b = results[best][0]
             offset = align_prior_scale(mu_p, st_b['log_depth'], sigmas[best].unsqueeze(0), st_b['confidence'],
-                                       max_sigma=fcfg.get('align_max_sigma', 0.05))
+                                       max_sigma=fcfg.get('align_max_sigma', 0.05),
+                                       scale_prior_std=fcfg.get('scale_prior_std'))
             mu_p = mu_p + offset.view(-1, 1, 1)
             if fcfg.get('sigma_at', 'prior') == 'prior' and fcfg.get('sigma_mode', 'analytic') == 'analytic':
                 sigmas = [stereo_sigma(rays, mu_p[0].exp(), st, t12, W, scfg, fcfg) for st, t12 in results]

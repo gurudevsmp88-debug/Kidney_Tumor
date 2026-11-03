@@ -14,9 +14,11 @@ against Splatter-360~\cite{chen2025splatter360}, PanSplat~\cite{zhang2024panspla
 regressors \cite{leroy2024mast3r,wang2025vggt} run on cube faces.
 
 \paragraph{The learned student is not evaluated.}
-The city-as-teacher training (\cref{sec:teacher}) is implemented, but this draft evaluates only the
-training-free fusion. Whether amodal supervision and uncertainty-weighted teacher losses improve a
-foundation-model student is untested.
+The city-as-teacher training (\cref{sec:teacher}) is implemented. A small reference student trained
+for 400 CPU steps did not converge (median errors far above the prior), so we report no student
+results. The teacher is evaluated only as a source of calibration data (\cref{sec:teacher_cal}).
+Whether amodal supervision and covariance-weighted teacher losses improve a foundation-model student
+requires GPU training and remains open.
 
 \paragraph{Modelling assumptions.}
 Partners share the reference image, so treating several partners as independent overstates the
@@ -31,6 +33,7 @@ geometry-conditioned calibration of the matching precision, makes this observabi
 Fusing on that basis with a monocular prior yields metric depth with calibrated per-ray
 uncertainty that falls back gracefully where geometry is uninformative. In controlled experiments it
 reduces the error of a simulated foundation prior by more than $4\times$. In-distribution it is
-matched by a well-calibrated geometry-blind confidence, but it remains calibrated, and becomes clearly
-more accurate, once the relative pose is uncertain, which is the normal case for street-level capture. Establishing how close this brings
+matched by a well-calibrated geometry-blind confidence. It remains calibrated and becomes clearly more
+accurate once the relative pose is uncertain, the normal case for street-level capture, and when an
+exposure-robust cost is used, where the confidence proxy loses its implicit knowledge of the epipoles. Establishing how close this brings
 real street-level panoramas to LiDAR accuracy is the next step.

@@ -1,0 +1,31 @@
+{
+  "steps": 400,
+  "resolution": [
+    64,
+    128
+  ],
+  "variants": {
+    "variance": {
+      "layer1_median_rel": 0.6307152668014169,
+      "layer1_calib_1s": 0.5448948742559878,
+      "layer1_nll": 8.780213189000884,
+      "layer2_median_rel": 0.6340121130148569
+    },
+    "uniform": {
+      "layer1_median_rel": 8.296913446858525,
+      "layer1_calib_1s": 0.2564189364590372,
+      "layer1_nll": 46.12268748879433,
+      "layer2_median_rel": 7.375899627804756
+    },
+    "min_views": {
+      "layer1_median_rel": 0.30928353530665237,
+      "layer1_calib_1s": 0.5494541119163235,
+      "layer1_nll": 3.8579356696767113,
+      "layer2_median_rel": 0.33882957696914673
+    }
+  },
+  "amodal_heuristic": {
+    "ratio": 1.1153104305267334,
+    "median_rel": 0.07619185745716095
+  }
+}

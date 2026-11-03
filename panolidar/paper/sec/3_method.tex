@@ -12,6 +12,8 @@ relative errors are additive.
 \subsection{Closed-form spherical triangulation uncertainty}
 \label{sec:sigma}
 
+\input{fig/geometry}
+
 Consider one partner at $\bvec$ and the point $\mathbf{X}=z\dvec$. In the triangle
 $(\mathbf{0},\bvec,\mathbf{X})$ let $\alpha$ be the angle at the reference camera between $\dvec$ and
 $\bvec$, $\beta$ the angle at the partner, and $\gamma=\pi-\alpha-\beta$ the parallax angle at
@@ -85,9 +87,15 @@ with constant $\sigma_\theta$.
 \label{sec:fusion}
 
 \paragraph{Scale alignment.}
-Monocular metric depth is often off by a per-image scale factor. We estimate a global log-scale
-offset as the precision-weighted median of $\mu_s-\mu_p$ over well-conditioned rays
-($\sigma_s<0.05$, $c>0.5$), with weights $c/\sigma_s^2$, and add it to the prior.
+Monocular metric depth is often off by a per-image scale factor. We measure a global log-scale
+offset $\hat o$ as the precision-weighted median of $\mu_s-\mu_p$ over well-conditioned rays
+($\sigma_s<0.05$, $c>0.5$), with weights $c/\sigma_s^2$. Its robust standard error is
+$s_o=1.2533\cdot1.4826\,\mathrm{MAD}/\sqrt{n/25}$; we divide the ray count $n$ by 25 because errors
+are correlated within the $5\times5$ aggregation windows. Under a Gaussian prior $\mathcal{N}(0,s_p^2)$ on
+the scale error of the prior ($s_p=0.1$), we apply the posterior mean
+$o=\hat o\,s_p^2/(s_p^2+s_o^2)$. With few or mutually inconsistent reliable rays, as under strong
+photometric degradation, the correction therefore shrinks towards zero instead of locking onto a
+wrong scale.
 
 \paragraph{Gated Bayesian fusion.}
 Let the prior be $\mathcal{N}(\mu_p,\sigma_p^2)$ in log-depth and partner $k$ give

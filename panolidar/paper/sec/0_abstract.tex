@@ -15,7 +15,9 @@ act as its own teacher, supplying uncertainty-weighted and amodal supervision as
 calibration data. On a procedural street benchmark with exact ground truth, our fusion reduces the
 median relative error of a simulated foundation prior from 6.95\% to 1.61\% with calibrated
 uncertainties. A geometry-blind confidence-based uncertainty fitted on the same data is equally
-accurate in-distribution. Under relative-pose error, the closed form stays calibrated without refitting,
-and at $1^\circ$/10\,cm it lowers the error from 3.93\% to 3.39\%. Evaluation on real captures with LiDAR ground truth is left to future
+accurate in-distribution. The closed form pays off where match confidence cannot see the geometry. Under
+relative-pose error it stays calibrated without refitting, and at $1^\circ$/10\,cm it lowers the error
+from 3.93\% to 3.39\%. With an exposure-robust ZNCC cost, the confidence-based uncertainty breaks down
+(5.29\% vs.\ 2.80\%). Evaluation on real captures with LiDAR ground truth is left to future
 work and is required before drawing conclusions about real-world accuracy.
 \end{abstract}

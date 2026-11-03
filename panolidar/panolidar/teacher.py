@@ -51,10 +51,11 @@ def build_teacher_points(depths, poses, sigma_ang, stride=2, rel_tol=0.02):
     return {'points': points, 'cov': cov, 'n_views': vis.sum(1)}
 
 
-def layered_targets(points, cov, R, C, height, width, gap_rel=0.05, gap_abs=0.5):
+def layered_targets(points, cov, R, C, height, width, gap_rel=0.05, gap_abs=0.5, n_views=None):
     """Per-pixel two-layer teacher targets for a student panorama at pose (R, C).
 
-    Returns dict of (H, W) tensors: depth1, var1, depth2, var2 (inf / nan where no target).
+    Returns dict of (H, W) tensors: depth1, var1, depth2, var2 (inf / nan where no target), and
+    views1/views2 (number of teacher views of the chosen point, 0 where none) if n_views is given.
     var is the teacher variance along the student ray.
     """
     theta, phi, dist = project_points(points, R, C)
@@ -70,15 +71,34 @@ def layered_targets(points, cov, R, C, height, width, gap_rel=0.05, gap_abs=0.5)
         chosen = candidate & (dist == depth[pix])
         out_var = torch.full((n,), math.nan, dtype=dist.dtype)
         out_var[pix[chosen]] = var[chosen]
-        return depth, out_var
+        views = torch.zeros(n, dtype=torch.long)
+        if n_views is not None:
+            views[pix[chosen]] = n_views[chosen].long()
+        return depth, out_var, views
 
     all_points = torch.ones_like(dist, dtype=torch.bool)
-    depth1, var1 = first_surface(all_points)
+    depth1, var1, views1 = first_surface(all_points)
     behind = dist > depth1[pix] * (1 + gap_rel) + gap_abs
-    depth2, var2 = first_surface(behind)
+    depth2, var2, views2 = first_surface(behind)
     shape = (height, width)
-    return {'depth1': depth1.view(shape), 'var1': var1.view(shape),
-            'depth2': depth2.view(shape), 'var2': var2.view(shape)}
+    out = {'depth1': depth1.view(shape), 'var1': var1.view(shape),
+           'depth2': depth2.view(shape), 'var2': var2.view(shape)}
+    if n_views is not None:
+        out['views1'], out['views2'] = views1.view(shape), views2.view(shape)
+    return out
+
+
+def perturb_teacher(points, cov, generator, max_rel_std=0.5):
+    """Simulate a real multi-view teacher: displace each point by a draw from its own covariance.
+
+    Ill-conditioned points (e.g. seen from a single view) get displacements capped at
+    max_rel_std times their distance from the origin along each principal axis.
+    """
+    evals, evecs = torch.linalg.eigh(cov.double())
+    cap = (max_rel_std * points.double().norm(dim=-1, keepdim=True)) ** 2
+    std = torch.sqrt(torch.minimum(evals.clamp_min(0), cap))
+    z = torch.randn(points.shape, generator=generator, dtype=torch.float64)
+    return points + (evecs @ (std * z).unsqueeze(-1)).squeeze(-1).to(points.dtype)
 
 
 def gaussian_nll_log(mu, sigma, target_depth, target_var=None, max_target_rel_std=0.2):

@@ -46,7 +46,12 @@ We make this observability explicit and use it for fusion:
   calibrated per-ray uncertainty, and reduces exactly to the prior for a single panorama.
   \item A \textbf{city-as-teacher} scheme (\cref{sec:teacher}): a dense capture of one city provides
   multi-view triangulation covariances for uncertainty-weighted supervision, amodal targets behind
-  occluders seen only from other panoramas, and the calibration data for the stereo precision.
+  occluders seen only from other panoramas, and the calibration data for the stereo precision. We
+  verify the last use; the first two are implemented but not yet evaluated.
+  \item A careful \textbf{controlled study} with fitted geometry-blind baselines
+  (\cref{sec:experiments}). In-distribution, a calibrated match confidence is as good as the closed
+  form, but it breaks down under relative-pose error and with exposure-robust matching costs, where
+  the closed form does not.
 \end{itemize}
 We evaluate on a procedural street benchmark with exact ground truth
 (\cref{sec:experiments}). We stress that this draft contains \emph{no real-data experiments}; the

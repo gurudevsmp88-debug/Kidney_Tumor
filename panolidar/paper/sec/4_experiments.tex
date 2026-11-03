@@ -66,7 +66,7 @@ accurate as ours in-distribution (1.60\% vs.\ 1.61\%) and has a slightly better 
 confidence already collapses near the epipoles, because all hypotheses project to nearly the same
 pixel, so it implicitly encodes much of the observability. The same holds when transferring the
 calibration to other baselines and resolutions (\cref{tab:transfer}): all calibrated fusion variants
-are within a few hundredths of a percent of each other. The closed form therefore does \emph{not}
+are within 0.1 percentage points of each other. The closed form therefore does \emph{not}
 improve accuracy over a well-calibrated confidence in the absence of pose error on this benchmark.
 
 \begin{table*}[t]
@@ -114,3 +114,49 @@ SfM covariance or the GNSS/IMU specification.
 With two partners at $+2$\,m and $-8$\,m, all calibrated variants reach the same accuracy
 (1.19--1.21\%) and similar calibration, \ie we observe no benefit of geometric weighting across
 partners on this benchmark.
+
+\subsection{Capture effects}
+\label{sec:capture}
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{1.8pt}
+  \input{tables/capture.tex}
+  \caption{\textbf{Capture effects} (median relative error, \%, 8 scenes): partner exposure change
+  (gain 0.6, bias 0.15), sensor noise ($\sigma=0.03$), half of the parked cars moved by 3\,m between
+  captures, and all three combined. Each cost function has its own calibration.}
+  \label{tab:capture}
+\end{table}
+
+\Cref{tab:capture} varies the capture conditions. Two findings stand out. First, the cost
+function matters: L1 is best for clean images and under sensor noise, while ZNCC is far more robust to
+an exposure change between captures (2.88\% vs.\ 5.96\%) and in the combined setting (4.56\%
+vs.\ 8.51\%). Second, with ZNCC the geometry-blind confidence baseline breaks down (5.29\% vs.\ 2.80\%
+on clean data, 6.72\% vs.\ 4.56\% combined). Its success with L1 rests on the L1 confidence happening
+to encode the epipolar degeneracy, which does not hold for every cost. The closed form does not depend
+on such a coincidence. The outlier gate gives a modest gain on clean data and with moving cars
+(3.06\%$\to$2.80\% and 3.09\%$\to$2.82\%), and none in the combined setting.
+
+\subsection{Calibrating from a noisy city teacher}
+\label{sec:teacher_cal}
+
+\begin{table}[t]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \input{tables/teacher_calibration.tex}
+  \caption{\textbf{Calibration data.} The precision model of \cref{eq:calibration} is fitted on depth
+  from a simulated city teacher (7 panoramas per street, lateral offsets, points displaced by draws
+  from their own triangulation covariance, 0.5\,px matching at 2048\,px width) instead of ground truth.
+  Evaluation as in \cref{tab:main}.}
+  \label{tab:teacher}
+\end{table}
+
+Fitting the calibration on noisy teacher depth instead of ground truth costs nothing
+measurable (\cref{tab:teacher}): all variants reach 1.61--1.62\% with calibrated uncertainties. Treating
+the teacher as exact inflates the fitted scales slightly, as expected, because teacher error is
+absorbed into the matching precision. Adding the teacher covariance in quadrature removes this
+inflation. Downstream, however, the difference is negligible here, because the simulated teacher is
+about $8\times$ more precise than the $512$\,px stereo it calibrates. Covariance-aware calibration
+should matter only for teachers of comparable precision; we have not tested that regime.

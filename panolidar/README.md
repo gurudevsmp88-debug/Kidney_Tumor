@@ -38,13 +38,16 @@ trained with a city-scale teacher**.
 | `panolidar/synthetic.py` | procedural street-canyon scenes with exact depth |
 | `panolidar/metrics.py` | LiDAR-style metrics (within 5/10/20 cm, calibration, Chamfer) |
 | `panolidar/data.py` | posed panorama folders (`poses.json`), PLY export |
+| `panolidar/calibration.py` | geometry-conditioned calibration `a(c)·U^κ` (+ pose term), fitted baselines |
+| `panolidar/benchmark.py` | evaluation protocols used in the paper |
+| `panolidar/kitti360.py` | MEI fisheye pair → equirect, LiDAR → ERP depth, KITTI-360 readers |
 | `panolidar/cli.py` | `python -m panolidar benchmark / train-synthetic / reconstruct` |
 
 ## Usage
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests -q                         # 15 CPU tests (incl. Monte Carlo check of the sigma formula)
+python -m pytest tests -q                         # CPU tests (incl. Monte Carlo checks of the sigma formula)
 python -m panolidar benchmark --seeds 0 1 2 3 4 5 6 7 8 9
 python -m panolidar train-synthetic --steps 200 --save student.pt
 
@@ -57,36 +60,40 @@ python -m panolidar reconstruct --scene /path/to/city_block --ref 12 --single --
 also has ground-truth depth (e.g. projected LiDAR), it prints the metrics. Priors come from any
 panoramic depth model run beforehand (e.g. Depth Any Panoramas), saved as metric depth `.npy`.
 
-## Results so far (synthetic streets only, 128x256, baseline 4 m along the street)
+## Paper draft and experiments
 
-`python -m panolidar benchmark --seeds 0..9`. The simulated prior has ~6% smooth relative error
-plus up to ±10% global scale error. Median relative error per angle between ray and baseline:
+`paper/main.pdf` is a CVPR-format draft (official CVPR 2027 author kit) built from generated tables.
+Reproduce every number on CPU:
 
-| method | 0–10° | 10–30° | 30–60° | 60–90° | all | calib. 1σ (ideal 0.68) |
-| --- | --- | --- | --- | --- | --- | --- |
-| prior | 0.060 | 0.053 | 0.056 | 0.058 | 0.057 | 0.54 |
-| prior, scale-aligned | 0.053 | 0.039 | 0.038 | 0.040 | 0.039 | 0.70 |
-| stereo only | 0.390 | 0.057 | 0.026 | 0.018 | 0.022 | 0.77 |
-| **fused** | **0.053** | **0.036** | **0.025** | **0.018** | **0.021** | **0.72** |
+```bash
+python experiments/run_paper_experiments.py   # calibration, main table, ablations, transfer  (~3 min)
+python experiments/run_robustness.py          # relative-pose noise, mixed baselines          (~4 min)
+python experiments/run_capture.py             # exposure change, sensor noise, moving cars     (~15 min)
+python experiments/run_teacher_calibration.py # calibration from a noisy city teacher          (~5 min)
+python experiments/run_student.py 400         # learned student (did not converge on CPU)
+bash experiments/run_all.sh                   # everything used in the paper, in order
+python experiments/make_figures.py            # qualitative figure
+cd paper && latexmk -pdf main.tex
+```
 
-The fused result matches or beats the better source in every bin and stays calibrated. Absolute
-accuracy at 256 px width is far from LiDAR. The angular precision, and hence σ, scales with 1/width,
-so 8K panoramas should be about 30x better in theory; this has not been measured. **These are
-synthetic results with a simulated prior; nothing here has been run on real panoramas yet.**
+Honest summary of the synthetic results (256x512, details in the paper):
 
-## Still needed for a paper
-
-1. **Real benchmark with LiDAR:** KITTI-360 (two 180° fisheyes, about a full sphere, plus accumulated
-   LiDAR incl. occluded regions). Needs a fisheye-to-ERP loader (not written yet).
-2. **Real prior:** run Depth Any Panoramas / DA360 / PaGeR and feed their depth as the prior.
-3. **Real teacher:** SfM + MVS (e.g. COLMAP spherical, or 2DGS) on the dense city capture. The
-   teacher depth maps replace the synthetic ones in `build_teacher_points`. Validate the teacher
-   against any LiDAR you have.
-4. **Student:** replace the small CNN with a foundation backbone. Learn the stereo features (the
-   cost volume runs on learned features already). Train on the city, test on *unseen* areas or cities.
-5. **Baselines:** Splatter-360, PanSplat, Depth Any Panoramas, DA360, PaGeR, MASt3R/VGGT on cube faces.
-6. **Ablations:** analytic σ vs learned σ vs none; with/without scale alignment; gating; amodal layer;
-   baseline length; panorama resolution.
+- **Fusion works:** median relative error falls from 6.95% (simulated prior) to 1.61%, and the
+  uncertainties are calibrated (71% of errors fall within 1σ).
+- **No advantage in-distribution:** a geometry-blind σ ∝ 1/confidence, fitted on the same
+  calibration data, is just as accurate (1.60%). The match confidence already collapses at the
+  epipoles. The same tie holds when transferring to other baselines and resolutions.
+- **The closed form matters under relative-pose error:** at 1°/10 cm the error drops from 3.93% to
+  3.39% (best baseline), 1σ coverage is 0.67 vs ≤0.46, and NLL is −1.54 vs ≥−0.82. At 0.3°/5 cm only
+  calibration and NLL improve.
+- **Exposure-robust matching:** with the ZNCC cost, the confidence-based σ breaks down (5.29% vs
+  2.80% clean, 6.72% vs 4.56% with exposure change, noise and moving cars combined); the closed form
+  does not.
+- **Calibration from a noisy city teacher** matches calibration from ground truth (1.61–1.62%).
+- **The learned student did not converge** in 400 CPU steps (`results/student.json`, median errors
+  of 31–830%). Those numbers say nothing about teacher weighting and are not in the paper.
+- **Nothing here is real data.** KITTI-360 evaluation (`panolidar/kitti360.py`, untested on the real
+  dataset) is the decisive missing experiment.
 
 ## Known limitations
 
