@@ -1,23 +1,20 @@
 \begin{abstract}
-Panoramic depth foundation models predict a depth for every viewing direction, but their metric
-error of several percent is far from the centimetre accuracy of LiDAR. Two panoramas captured a few
-metres apart can triangulate much more precisely---yet only in some directions: along the baseline,
-which for street-level capture is exactly the direction of travel, depth becomes unobservable. We
-make this observability explicit. We derive a closed-form, pose-aware expression for the depth
-uncertainty of spherical two-view triangulation for every ray, which diverges at the epipoles and
-accounts for matching noise and relative-pose error. Combined with a two-parameter
-geometry-conditioned calibration of the photometric matching precision, this yields calibrated
-per-ray stereo uncertainties that we fuse with a learned panoramic prior in log-depth, after
-aligning the prior's metric scale to well-conditioned rays and gating occlusions with a mixture
-model. The result is metric depth with a calibrated uncertainty on every ray, degrading gracefully
-to the prior where geometry offers no information. We further describe how a dense city capture can
-act as its own teacher, supplying uncertainty-weighted and amodal supervision as well as the
-calibration data. On a procedural street benchmark with exact ground truth, our fusion reduces the
-median relative error of a simulated foundation prior from 6.95\% to 1.61\% with calibrated
-uncertainties. A geometry-blind confidence-based uncertainty fitted on the same data is equally
-accurate in-distribution. The closed form pays off where match confidence cannot see the geometry. Under
-relative-pose error it stays calibrated without refitting, and at $1^\circ$/10\,cm it lowers the error
-from 3.93\% to 3.39\%. With an exposure-robust ZNCC cost, the confidence-based uncertainty breaks down
-(5.29\% vs.\ 2.80\%). Evaluation on real captures with LiDAR ground truth is left to future
-work and is required before drawing conclusions about real-world accuracy.
+A single panorama, passed through a modern depth network, gives a depth for every viewing direction,
+but the result is typically off by several percent, which is metres at street scale. Two panoramas
+taken a few metres apart can do much better by triangulation, with one catch: along the line joining
+them, the parallax vanishes and depth cannot be measured at all. For a camera moving down a street,
+that line points straight along the road. We derive the triangulation uncertainty of every ray in
+closed form, including the effect of matching noise and of errors in the relative pose. A small
+calibration maps it to the observed error, and we use it to fuse stereo with a learned panoramic prior
+in log-depth. The prior's metric scale is corrected from the well-conditioned rays, and occlusions are
+rejected with a mixture model. The output is metric depth with an uncertainty for each ray; where the
+two views carry no information, it falls back to the prior. We also outline how a dense capture of one
+city can serve as its own teacher, providing both supervision and calibration data. On procedural
+street scenes with exact ground truth, fusion lowers the median error of a simulated prior from 6.95\%
+to 1.61\%, and the predicted uncertainties are well calibrated. A simpler uncertainty derived from match
+confidence alone, fitted on the same data, is just as accurate in this setting. It falls behind when
+the confidence cannot see the geometry. With a relative-pose error of $1^\circ$/10\,cm, our error is
+3.39\% against 3.93\%. With an exposure-robust ZNCC cost, the confidence baseline reaches 5.29\% where
+ours reaches 2.80\%. All results are synthetic; an evaluation on real captures with LiDAR ground
+truth is still needed.
 \end{abstract}

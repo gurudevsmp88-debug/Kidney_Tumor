@@ -5,55 +5,52 @@
   \centering
   \includegraphics[width=\linewidth]{figures/teaser.pdf}
   \caption{\textbf{Two panoramas see depth only away from the epipoles.} (a) Reference panorama of a
-  procedural street; the partner panorama is 4\,m further down the street. (b) Our closed-form
-  triangulation uncertainty for unit matching precision: it diverges at the two epipoles
-  (\textcolor{gray}{$\times$}, looking along the street), exactly where the road continues.
-  (c) Stereo alone fails there. (d) Fusing a monocular panoramic prior with stereo weighted by the
-  calibrated closed-form uncertainty keeps the stereo accuracy where it exists and falls back to
-  the prior where it does not.}
+  procedural street; the second panorama was taken 4\,m further down the road. (b) Our closed-form
+  triangulation uncertainty at unit matching precision. It blows up at the two epipoles
+  (\textcolor{gray}{$\times$}), which look along the street, exactly where the road continues.
+  (c) Stereo alone fails in those regions. (d) Weighting stereo by the calibrated uncertainty and
+  fusing it with a monocular prior keeps the stereo accuracy where it exists and falls back to the
+  prior where it does not.}
   \label{fig:teaser}
 \end{figure*}
 
-Street-level panoramas are the most widely available imagery of cities. Turning one or two of them
-into metric 3D geometry that approaches LiDAR quality would make dense 3D maps far cheaper to
-build and to update. Two families of methods address this today. \emph{Panoramic depth foundation
-models}~\cite{lin2026dap,da360,pager2026,rey2022360monodepth} predict a depth for every viewing
-direction from a single panorama, but even the best report relative errors of several percent;
-at 20\,m that is more than a metre. \emph{Generalizable multi-view methods} for panoramas
-\cite{chen2023panogrf,chen2025splatter360,zhang2024pansplat} build spherical cost volumes from two
-or more panoramas and are trained for novel-view synthesis, not for calibrated metric geometry.
+Street-level panoramas cover most cities many times over. If one or two of them could be turned into
+metric 3D geometry close to LiDAR quality, dense city models would become much cheaper to build and to
+keep current. Two lines of work come close. Panoramic depth foundation
+models~\cite{lin2026dap,da360,pager2026,rey2022360monodepth} predict depth for every direction from a
+single image, but even the strongest report relative errors of several percent; at 20\,m that is more
+than a metre. Generalizable multi-view methods for
+panoramas~\cite{chen2023panogrf,chen2025splatter360,zhang2024pansplat} build spherical cost volumes
+from two or more images, but they are trained to synthesize new views, not to produce calibrated metric
+geometry.
 
-A pair of high-resolution panoramas captured a few metres apart carries far more metric
-information than either family exploits explicitly, but it is distributed very unevenly over the
-sphere. Triangulation precision degrades as the square of depth and diverges at the
-\emph{epipoles}, the two directions along the baseline. For a camera on a car or a backpack, the
-baseline is the direction of travel, so the region without any parallax is precisely the
-continuation of the street (\cref{fig:teaser}b). A depth estimator that does not know where
-geometry is informative must either distrust stereo everywhere or trust it where it is
-meaningless.
+Two high-resolution panoramas a few metres apart contain far more metric information than either line
+of work uses explicitly. That information is spread very unevenly over the sphere, though.
+Triangulation error grows with the square of the depth, and it diverges at the \emph{epipoles}, the two
+directions along the baseline. A camera on a car or a backpack moves along the street, so the baseline
+points down the street, and the region with no parallax is precisely the road ahead and behind
+(\cref{fig:teaser}b). A depth estimator that ignores this has two bad options: distrust stereo
+everywhere, or trust it in places where it means nothing.
 
-We make this observability explicit and use it for fusion:
+This paper makes that structure explicit and builds the fusion around it. Concretely, we contribute:
 \begin{itemize}
-  \item A \textbf{closed-form, pose-aware uncertainty} of spherical two-view triangulation for
-  every ray (\cref{sec:sigma}), validated against Monte Carlo simulation within 0.5\%, including
-  rotation and translation errors of the relative pose.
-  \item A \textbf{geometry-conditioned calibration} (\cref{sec:calibration}): the closed form
-  captures depth, baseline, epipoles, resolution and pose error; only the photometric matching
+  \item A \textbf{closed-form uncertainty} for spherical two-view triangulation, for every ray, that
+  also accounts for rotation and translation errors of the relative pose (\cref{sec:sigma}). It agrees
+  with Monte Carlo simulation to within 0.5\%.
+  \item A \textbf{calibration conditioned on that geometry} (\cref{sec:calibration}). Depth, baseline,
+  epipoles, resolution and pose error all stay in the closed form; only the photometric matching
   precision is learned, as a two-parameter monotone map fitted robustly on teacher data.
-  \item \textbf{Epipole-aware Bayesian fusion} (\cref{sec:fusion}) of a learned panoramic prior with
-  one or more stereo partners in log-depth, with metric scale alignment of the prior and a
-  mixture-model gate against occlusions and moving objects. It outputs metric depth with a
-  calibrated per-ray uncertainty, and reduces exactly to the prior for a single panorama.
-  \item A \textbf{city-as-teacher} scheme (\cref{sec:teacher}): a dense capture of one city provides
-  multi-view triangulation covariances for uncertainty-weighted supervision, amodal targets behind
-  occluders seen only from other panoramas, and the calibration data for the stereo precision. We
-  verify the last use; the first two are implemented but not yet evaluated.
-  \item A careful \textbf{controlled study} with fitted geometry-blind baselines
-  (\cref{sec:experiments}). In-distribution, a calibrated match confidence is as good as the closed
-  form, but it breaks down under relative-pose error and with exposure-robust matching costs, where
-  the closed form does not.
+  \item \textbf{Epipole-aware Bayesian fusion} of a learned panoramic prior with one or more stereo
+  partners in log-depth (\cref{sec:fusion}). It corrects the prior's metric scale and rejects
+  occlusions and moving objects with a mixture model. It returns metric depth with a per-ray
+  uncertainty, and with a single panorama it reduces to the prior.
+  \item A \textbf{city-as-teacher} scheme (\cref{sec:teacher}). A dense capture of one city supplies
+  triangulation covariances for weighting the supervision, amodal targets behind occluders that only
+  other panoramas see, and calibration data. So far we have tested only the last of these uses.
+  \item A \textbf{controlled study} against geometry-blind baselines fitted on the same data
+  (\cref{sec:experiments}). Without pose error, a well-calibrated match confidence does as well as the
+  closed form. With pose error, or with an exposure-robust matching cost, it does not.
 \end{itemize}
-We evaluate on a procedural street benchmark with exact ground truth
-(\cref{sec:experiments}). We stress that this draft contains \emph{no real-data experiments}; the
-evaluation protocol for KITTI-360~\cite{liao2022kitti360} with accumulated LiDAR is described in
-\cref{sec:limitations} and is the most important missing piece.
+All experiments use procedural street scenes with exact ground truth. There are \emph{no real-data
+experiments} in this draft. \Cref{sec:limitations} describes the KITTI-360~\cite{liao2022kitti360}
+protocol with accumulated LiDAR that we consider the most important missing piece.
